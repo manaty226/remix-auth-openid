@@ -9,7 +9,7 @@ import {
  * This interface declares what configuration the strategy needs from the
  * developer to correctly work.
  */
-export interface MyStrategyOptions {
+export interface OIDCStrategyOptions {
   something: "You may need";
 }
 
@@ -17,16 +17,16 @@ export interface MyStrategyOptions {
  * This interface declares what the developer will receive from the strategy
  * to verify the user identity in their system.
  */
-export interface MyStrategyVerifyParams {
+export interface OIDCStrategyVerifyParams {
   something: "Dev may need";
 }
 
-export class MyStrategy<User> extends Strategy<User, MyStrategyVerifyParams> {
+export class MyStrategy<User> extends Strategy<User, OIDCStrategyVerifyParams> {
   name = "change-me";
 
   constructor(
-    options: MyStrategyOptions,
-    verify: StrategyVerifyCallback<User, MyStrategyVerifyParams>
+    options: OIDCStrategyOptions,
+    verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>
   ) {
     super(verify);
     // do something with the options here
