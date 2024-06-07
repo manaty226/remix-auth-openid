@@ -1,42 +1,84 @@
 {
-  "name": "remix-auth-oidc",
-  "version": "0.0.0",
-  "main": "./build/index.js",
-  "types": "./build/index.d.ts",
-  "scripts": {
-    "build": "tsc --project tsconfig.json",
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint --ext .ts,.tsx src/",
-    "test": "jest --config=config/jest.config.ts --passWithNoTests",
-    "coverage": "npm run test -- --coverage"
-  },
-  "keywords": [
-    "remix",
-    "remix-auth",
-    "auth",
-    "authentication",
-    "strategy"
-  ],
-  "license": "MIT",
-  "files": [
-    "build",
-    "package.json",
-    "README.md"
-  ],
-  "peerDependencies": {
-    "@remix-run/server-runtime": "^1.0.0 || ^2.0.0",
-    "remix-auth": "^3.6.0"
-  },
-  "devDependencies": {
-    "@remix-run/node": "^2.9.2",
-    "eslint": "^9.4.0",
-    "jest": "^29.7.0",
-    "remix-auth": "^3.7.0",
-    "typedoc": "^0.25.13",
-    "typedoc-plugin-mdn-links": "^3.1.23",
-    "typescript": "^5.4.5"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  }
+	"name": "remix-auth-oidc",
+	"version": "0.1.0",
+	"description": "A strategy to use and implement OIDC based on node-openid-client",
+	"license": "MIT",
+	"funding": [],
+	"keywords": [
+		"remix",
+		"remix-auth",
+		"auth",
+		"authentication",
+		"strategy"
+	],
+	"author": {
+		"name": "Manato Takai",
+		"email": "hello+oss@sergiodxa.com",
+		"url": "https://sergiodxa.com"
+	},
+	"repository": {
+		"url": "https://github.com/sergiodxa/remix-auth-oauth2",
+		"type": "git"
+	},
+	"homepage": "https://github.com/sergiodxa/remix-auth-oauth2#readme",
+	"bugs": {
+		"url": "https://github.com/sergiodxa/remix-auth-oauth2/issues"
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"quality": "biome check .",
+		"quality:fix": "biome check . --write",
+		"test": "bun test",
+		"exports": "bun run ./scripts/exports.ts"
+	},
+	"sideEffects": false,
+	"type": "module",
+	"engines": {
+		"node": "^18.0.0 || ^20.0.0 || >=20.0.0"
+	},
+	"files": [
+		"build",
+		"package.json",
+		"README.md"
+	],
+	"exports": {
+		".": "./build/index.js",
+		"./package.json": "./package.json"
+	},
+	"dependencies": {
+		"@oslojs/oauth2": "^0.1.0",
+		"debug": "^4.3.4"
+	},
+	"peerDependencies": {
+		"@remix-run/cloudflare": "^1.0.0 || ^2.0.0",
+		"@remix-run/node": "^1.0.0 || ^2.0.0",
+		"@remix-run/deno": "^1.0.0 || ^2.0.0",
+		"remix-auth": "^3.6.0"
+	},
+	"peerDependenciesMeta": {
+		"@remix-run/cloudflare": {
+			"optional": true
+		},
+		"@remix-run/node": {
+			"optional": true
+		},
+		"@remix-run/deno": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.15.3",
+		"@biomejs/biome": "^1.7.2",
+		"@remix-run/node": "^2.8.1",
+		"@remix-run/server-runtime": "^2.8.1",
+		"@types/bun": "^1.0.12",
+		"@types/debug": "^4.1.12",
+		"consola": "^3.2.3",
+		"msw": "^2.2.13",
+		"remix-auth": "^3.6.0",
+		"typedoc": "^0.25.13",
+		"typedoc-plugin-mdn-links": "^3.1.25",
+		"typescript": "^5.4.5"
+	}
 }
