@@ -35,5 +35,8 @@
     "typedoc": "^0.25.13",
     "typedoc-plugin-mdn-links": "^3.1.23",
     "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
