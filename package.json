@@ -11,12 +11,12 @@
 		"url": "https://sergiodxa.com"
 	},
 	"repository": {
-		"url": "https://github.com/sergiodxa/remix-auth-oauth2",
+		"url": "https://github.com/manaty226/remix-auth-oidc",
 		"type": "git"
 	},
-	"homepage": "https://github.com/sergiodxa/remix-auth-oauth2#readme",
+	"homepage": "https://github.com/manaty226/remix-auth-oidc#readme",
 	"bugs": {
-		"url": "https://github.com/sergiodxa/remix-auth-oauth2/issues"
+		"url": "https://github.com/manaty226/remix-auth-oidc/issues"
 	},
 	"scripts": {
 		"build": "tsc",
