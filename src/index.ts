@@ -6,7 +6,7 @@ import { Strategy } from "remix-auth";
  * developer to correctly work.
  */
 export interface OIDCStrategyOptions {
-	something: "You may need";
+  something: "You may need";
 }
 
 /**
@@ -14,35 +14,35 @@ export interface OIDCStrategyOptions {
  * to verify the user identity in their system.
  */
 export interface OIDCStrategyVerifyParams {
-	something: "Dev may need";
+  something: "Dev may need";
 }
 
 export class OIDCStrategy<User> extends Strategy<
-	User,
-	OIDCStrategyVerifyParams
+  User,
+  OIDCStrategyVerifyParams
 > {
-	name = "change-me";
+  name = "remix-auth-oidc";
 
-	constructor(
-		options: OIDCStrategyOptions,
-		verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>,
-	) {
-		super(verify);
-		// do something with the options here
-	}
+  constructor(
+    options: OIDCStrategyOptions,
+    verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>
+  ) {
+    super(verify);
+    // do something with the options here
+  }
 
-	async authenticate(
-		request: Request,
-		sessionStorage: SessionStorage,
-		options: AuthenticateOptions,
-	): Promise<User> {
-		return await this.failure(
-			"Implement me!",
-			request,
-			sessionStorage,
-			options,
-		);
-		// Uncomment me to do a success response
-		// this.success({} as User, request, sessionStorage, options);
-	}
+  async authenticate(
+    request: Request,
+    sessionStorage: SessionStorage,
+    options: AuthenticateOptions
+  ): Promise<User> {
+    return await this.failure(
+      "Implement me!",
+      request,
+      sessionStorage,
+      options
+    );
+    // Uncomment me to do a success response
+    // this.success({} as User, request, sessionStorage, options);
+  }
 }
