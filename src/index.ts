@@ -176,8 +176,6 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		} catch (e) {
 			let message: string;
 
-			console.log("error details", e);
-
 			if (e instanceof errors.OPError) {
 				message = e.error_description ?? "Token exchange failed due to IdP";
 			} else if (e instanceof errors.RPError) {
@@ -191,8 +189,6 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 			} else {
 				message = "Token exchange failed due to unknown error";
 			}
-
-			console.log(message);
 
 			return await this.failure(
 				message,
