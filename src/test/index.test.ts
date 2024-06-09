@@ -149,7 +149,10 @@ describe("OIDC Strategy", () => {
 			};
 		};
 
-		const strategy = await OIDCStrategy.init<User>({...options, idTokenCheckParams: {max_age: 20}}, verify);
+		const strategy = await OIDCStrategy.init<User>(
+			{ ...options, idTokenCheckParams: { max_age: 20 } },
+			verify,
+		);
 
 		const stateValue = "dummy-state";
 
@@ -171,9 +174,9 @@ describe("OIDC Strategy", () => {
 				request,
 				sessionStorage,
 				authOptions,
-			);	
-		} catch(e) {
-			console.log(e)
+			);
+		} catch (e) {
+			console.log(e);
 			throw Error("Unexpected failed to authenticate");
 		}
 

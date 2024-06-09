@@ -150,7 +150,7 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 				new ReferenceError("Invalid code"),
 			);
 		}
-		
+
 		// exchange code for tokens
 		try {
 			// request to token endpoint with checking state, nonce, response_type and code_verifier

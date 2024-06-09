@@ -14,7 +14,6 @@ export interface TokenResponseBody {
 }
 
 export function getMockIdP() {
-
 	const { publicKey, privateKey } = generateKeyPairSync("rsa", {
 		modulusLength: 4096,
 		publicKeyEncoding: {
@@ -37,7 +36,6 @@ export function getMockIdP() {
 		kid: "some-kid",
 	};
 
-
 	return setupServer(
 		http.post("http://mock.remix-auth-openid/token", async () => {
 			const payload = {
@@ -54,7 +52,7 @@ export function getMockIdP() {
 				algorithm: "RS256",
 				keyid: "some-kid",
 			});
-		
+
 			return HttpResponse.json({
 				id_token: token,
 				access_token: token,
