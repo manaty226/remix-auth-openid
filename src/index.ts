@@ -17,6 +17,7 @@ import { Strategy } from "remix-auth";
 export interface OIDCStrategyOptions extends ClientMetadata, IssuerMetadata {
 	scopes?: string[];
 	audiences?: string[];
+	idTokenCheckParams?: Record<string, unknown>;
 }
 
 /**
@@ -92,8 +93,6 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		// parse callback parameters from IdP
 		const params = this.client.callbackParams(url.toString());
 
-		console.log(params);
-
 		// if state is not present, we need to start authorization request to the IdP
 		if (!params.state) {
 			// generate state, nonce, and code_challenge for prevent CSRF
@@ -151,7 +150,7 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 				new ReferenceError("Invalid code"),
 			);
 		}
-
+		
 		// exchange code for tokens
 		try {
 			// request to token endpoint with checking state, nonce, response_type and code_verifier
@@ -163,6 +162,7 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 					nonce: nonce,
 					response_type: "code",
 					code_verifier: verifier,
+					...this.options.idTokenCheckParams,
 				},
 			);
 

@@ -14,12 +14,6 @@ export interface TokenResponseBody {
 }
 
 export function getMockIdP() {
-	const payload = {
-		iss: "http://mock.remix-auth-openid",
-		sub: "some-subject",
-		aud: "client-id",
-		exp: Math.floor(Date.now() / 1000) + 60 * 60,
-	} satisfies JwtPayload;
 
 	const { publicKey, privateKey } = generateKeyPairSync("rsa", {
 		modulusLength: 4096,
@@ -43,13 +37,24 @@ export function getMockIdP() {
 		kid: "some-kid",
 	};
 
-	const token = sign(payload, privateKey, {
-		algorithm: "RS256",
-		keyid: "some-kid",
-	});
 
 	return setupServer(
 		http.post("http://mock.remix-auth-openid/token", async () => {
+			const payload = {
+				iss: "http://mock.remix-auth-openid",
+				sub: "some-subject",
+				aud: "client-id",
+				nonce: "dummy-nonce",
+				auth_time: Math.floor(Date.now() / 1000),
+				iat: Math.floor(Date.now() / 1000),
+				exp: Math.floor(Date.now() / 1000) + 60 * 60,
+			} satisfies JwtPayload;
+
+			const token = sign(payload, privateKey, {
+				algorithm: "RS256",
+				keyid: "some-kid",
+			});
+		
 			return HttpResponse.json({
 				id_token: token,
 				access_token: token,

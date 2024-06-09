@@ -149,12 +149,14 @@ describe("OIDC Strategy", () => {
 			};
 		};
 
-		const strategy = await OIDCStrategy.init<User>(options, verify);
+		const strategy = await OIDCStrategy.init<User>({...options, idTokenCheckParams: {max_age: 20}}, verify);
 
-		const stateValue = "123456";
+		const stateValue = "dummy-state";
 
 		const session = await sessionStorage.getSession();
 		session.set("oidc:state", stateValue);
+		session.set("oidc:nonce", "dummy-nonce");
+		session.set("oidc:code_verifier", "dummy-code-verifier");
 
 		const request = new Request(
 			`https://remix.auth/callback?state=${stateValue}&code=123456`,
@@ -164,17 +166,16 @@ describe("OIDC Strategy", () => {
 			},
 		);
 
-		const user = await strategy.authenticate(
-			request,
-			sessionStorage,
-			authOptions,
-		);
-
-		// const user = await strategy.authenticate(
-		// 	request,
-		// 	sessionStorage,
-		// 	authOptions,
-		// );
+		try {
+			const user = await strategy.authenticate(
+				request,
+				sessionStorage,
+				authOptions,
+			);	
+		} catch(e) {
+			console.log(e)
+			throw Error("Unexpected failed to authenticate");
+		}
 
 		// expect(user).toEqual({ id: 1 });
 	});
