@@ -12,8 +12,13 @@ import { generators } from "openid-client";
 import type { AuthenticateOptions } from "remix-auth";
 import { AuthorizationError } from "remix-auth";
 import { OIDCStrategy } from "..";
-import type { OIDCStrategyOptions } from "..";
+import type {
+	OIDCStrategyOptions,
+	OIDCStrategyVerifyParams,
+	OIDCStrategyBaseUser,
+} from "..";
 import { catchResponse } from "./helper";
+import type { TokenSet } from "openid-client";
 
 import { JsonWebTokenError } from "jsonwebtoken";
 import { getMockIdP } from "./mock";
@@ -36,27 +41,25 @@ describe("OIDC Strategy", () => {
 		sessionStrategyKey: "auth:strategy",
 	};
 
-	interface User {
-		id: number;
-	}
+	interface User extends OIDCStrategyBaseUser {}
 
 	const options = Object.freeze({
 		issuer: "http://mock.remix-auth-openid",
-		clientId: "client-id",
-		clientSecret: "client-secret",
-		authorizeEndpoint: "http://mock.remix-auth-openid/authorize",
-		tokenEndpoint: "http://mock.remix-auth-openid/token",
-		jwksEndpoint: "http://mock.remix-auth-openid/.well-known/jwks.json",
-		redirectURI: "http://mock.example-rp/callback",
+		client_id: "client-id",
+		client_secret: "client-secret",
+		authorization_endpoint: "http://mock.remix-auth-openid/authorize",
+		token_endpoint: "http://mock.remix-auth-openid/token",
+		jwks_uri: "http://mock.remix-auth-openid/.well-known/jwks.json",
+		redirect_uris: ["http://mock.example-rp/callback"],
 	}) satisfies OIDCStrategyOptions;
 
-	test("should have a name 'remix-auth-oidc'", () => {
-		const strategy = new OIDCStrategy<User>(options, verify);
+	test("should have a name 'remix-auth-oidc'", async () => {
+		const strategy = await OIDCStrategy.init<User>(options, verify);
 		expect(strategy.name).toBe("remix-auth-openid");
 	});
 
 	test("redirects to authorization url if there is no state, nonce, and code_challenge", async () => {
-		const strategy = new OIDCStrategy<User>(options, verify);
+		const strategy = await OIDCStrategy.init<User>(options, verify);
 		const request = new Request("https://remix.auth/login", {
 			method: "GET",
 		});
@@ -74,8 +77,10 @@ describe("OIDC Strategy", () => {
 
 		expect(redirect.pathname).toBe("/authorize");
 		expect(redirect.searchParams.get("response_type")).toBe("code");
-		expect(redirect.searchParams.get("client_id")).toBe(options.clientId);
-		expect(redirect.searchParams.get("redirect_uri")).toBe(options.redirectURI);
+		expect(redirect.searchParams.get("client_id")).toBe(options.client_id);
+		expect(redirect.searchParams.get("redirect_uri")).toBe(
+			options.redirect_uris[0],
+		);
 		expect(redirect.searchParams.get("state")).toBeDefined();
 		expect(redirect.searchParams.get("state")).toBe(session.get("oidc:state"));
 		expect(redirect.searchParams.get("nonce")).toBeDefined();
@@ -88,7 +93,7 @@ describe("OIDC Strategy", () => {
 	});
 
 	test("authorization error if state is mismatch", async () => {
-		const strategy = new OIDCStrategy<User>(options, verify);
+		const strategy = await OIDCStrategy.init<User>(options, verify);
 		const request = new Request("https://remix.auth/callback?state=1233456", {
 			method: "GET",
 		});
@@ -101,7 +106,7 @@ describe("OIDC Strategy", () => {
 	});
 
 	test("authorization error if code is missing", async () => {
-		const strategy = new OIDCStrategy<User>(options, verify);
+		const strategy = await OIDCStrategy.init<User>(options, verify);
 
 		const stateValue = "123456";
 
@@ -127,7 +132,24 @@ describe("OIDC Strategy", () => {
 	});
 
 	test("authorization success", async () => {
-		const strategy = new OIDCStrategy<User>(options, verify);
+		const verify = async ({ tokens, request }: OIDCStrategyVerifyParams) => {
+			if (!tokens.id_token) {
+				throw new AuthorizationError("id_token missing");
+			}
+			if (!tokens.access_token) {
+				throw new AuthorizationError("access_token missing");
+			}
+
+			return {
+				sub: tokens.claims().sub,
+				idToken: tokens.id_token,
+				accessToken: tokens.access_token,
+				refreshToken: tokens.refresh_token,
+				expiredAt: new Date().getTime() / 1000 + (tokens.expires_in ?? 0),
+			};
+		};
+
+		const strategy = await OIDCStrategy.init<User>(options, verify);
 
 		const stateValue = "123456";
 

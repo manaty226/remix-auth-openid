@@ -1,7 +1,12 @@
 import type { SessionStorage } from "@remix-run/server-runtime";
 import { redirect } from "@remix-run/server-runtime";
 import { Issuer, errors, generators } from "openid-client";
-import type { Client, TokenSet } from "openid-client";
+import type {
+	Client,
+	TokenSet,
+	ClientMetadata,
+	IssuerMetadata,
+} from "openid-client";
 import type { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
 import { Strategy } from "remix-auth";
 
@@ -9,14 +14,7 @@ import { Strategy } from "remix-auth";
  * This interface declares what configuration the strategy needs from the
  * developer to correctly work.
  */
-export interface OIDCStrategyOptions {
-	issuer: string;
-	clientId: string;
-	clientSecret: string;
-	authorizeEndpoint: string;
-	tokenEndpoint: string;
-	jwksEndpoint: string;
-	redirectURI: string;
+export interface OIDCStrategyOptions extends ClientMetadata, IssuerMetadata {
 	scopes?: string[];
 	audiences?: string[];
 }
@@ -30,7 +28,19 @@ export interface OIDCStrategyVerifyParams {
 	request: Request;
 }
 
-export class OIDCStrategy<User> extends Strategy<
+export interface OIDCStrategyBaseUser {
+	sub: string;
+	accessToken: string;
+	idToken?: string;
+	refreshToken?: string;
+	expiredAt: number;
+}
+
+const STATE_KEY = "oidc:state";
+const NONCE_KEY = "oidc:nonce";
+const CODE_VERIFIER_KEY = "oidc:code_verifier";
+
+export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 	User,
 	OIDCStrategyVerifyParams
 > {
@@ -38,31 +48,35 @@ export class OIDCStrategy<User> extends Strategy<
 	options: OIDCStrategyOptions;
 	private client: Client;
 
-	constructor(
+	private constructor(
+		client: Client,
 		options: OIDCStrategyOptions,
 		verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>,
 	) {
 		super(verify);
 
 		this.options = options;
-
-		// create an openid client
-		const issuer = new Issuer({
-			issuer: this.options.issuer,
-			authorization_endpoint: this.options.authorizeEndpoint,
-			token_endpoint: this.options.tokenEndpoint,
-			jwks_uri: this.options.jwksEndpoint,
-		});
-
-		const client = new issuer.Client({
-			client_id: this.options.clientId,
-			client_secret: this.options.clientSecret,
-			issuer: this.options.issuer,
-			redirect_uri: this.options.redirectURI,
-		});
-
 		this.client = client;
 	}
+
+	public static init = async <User extends OIDCStrategyBaseUser>(
+		options: OIDCStrategyOptions,
+		verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>,
+	) => {
+		// create an openid client
+		let issuer: Issuer;
+		if (!options.authorization_endpoint || !options.token_endpoint) {
+			issuer = await Issuer.discover(options.issuer);
+		} else {
+			issuer = new Issuer({
+				...options,
+			});
+		}
+		const client = new issuer.Client({
+			...options,
+		});
+		return new OIDCStrategy<User>(client, options, verify);
+	};
 
 	async authenticate(
 		request: Request,
@@ -78,6 +92,8 @@ export class OIDCStrategy<User> extends Strategy<
 		// parse callback parameters from IdP
 		const params = this.client.callbackParams(url.toString());
 
+		console.log(params);
+
 		// if state is not present, we need to start authorization request to the IdP
 		if (!params.state) {
 			// generate state, nonce, and code_challenge for prevent CSRF
@@ -91,12 +107,14 @@ export class OIDCStrategy<User> extends Strategy<
 				code_challenge_method: "S256",
 				state: state,
 				nonce: nonce,
+				scope: this.options.scopes?.join(" "),
+				audience: this.options.audiences?.join(" "),
 			});
 
 			// store requested session bind values into the session
-			session.set("oidc:state", state);
-			session.set("oidc:nonce", nonce);
-			session.set("oidc:code_verifier", codeVerifier);
+			session.set(STATE_KEY, state);
+			session.set(NONCE_KEY, nonce);
+			session.set(CODE_VERIFIER_KEY, codeVerifier);
 
 			throw redirect(authzURL, {
 				headers: {
@@ -106,9 +124,9 @@ export class OIDCStrategy<User> extends Strategy<
 		}
 
 		// callback from the IdP in the below
-		const state = session.get("oidc:state");
-		const nonce = session.get("oidc:nonce");
-		const verifier = session.get("oidc:code_verifier");
+		const state = session.get(STATE_KEY);
+		const nonce = session.get(NONCE_KEY);
+		const verifier = session.get(CODE_VERIFIER_KEY);
 
 		// exchange code for tokens
 
@@ -137,12 +155,16 @@ export class OIDCStrategy<User> extends Strategy<
 		// exchange code for tokens
 		try {
 			// request to token endpoint with checking state, nonce, response_type and code_verifier
-			const tokens = await this.client.callback(this.options.redirectURI, params, {
-				state: state,
-				nonce: nonce,
-				response_type: "code",
-				code_verifier: verifier,
-			});
+			const tokens = await this.client.callback(
+				this.options.redirect_uris?.[0],
+				params,
+				{
+					state: state,
+					nonce: nonce,
+					response_type: "code",
+					code_verifier: verifier,
+				},
+			);
 
 			// check caller intended verification
 			const user = await this.verify({
@@ -153,6 +175,8 @@ export class OIDCStrategy<User> extends Strategy<
 			return this.success(user, request, sessionStorage, options);
 		} catch (e) {
 			let message: string;
+
+			console.log("error details", e);
 
 			if (e instanceof errors.OPError) {
 				message = e.error_description ?? "Token exchange failed due to IdP";
@@ -168,6 +192,8 @@ export class OIDCStrategy<User> extends Strategy<
 				message = "Token exchange failed due to unknown error";
 			}
 
+			console.log(message);
+
 			return await this.failure(
 				message,
 				request,
@@ -178,8 +204,19 @@ export class OIDCStrategy<User> extends Strategy<
 		}
 	}
 
-	public async refresh(refreshToken: string): Promise<TokenSet> {
-		return this.client.refresh(refreshToken);
+	public async refresh(
+		refreshToken: string,
+		options: Pick<AuthenticateOptions, "failureRedirect">,
+	): Promise<TokenSet | null> {
+		try {
+			const tokens = await this.client.refresh(refreshToken);
+			return tokens;
+		} catch (e) {
+			if (options.failureRedirect) {
+				throw redirect(options.failureRedirect);
+			}
+		}
+		return null;
 	}
 
 	public logoutUrl(idToken: string): string {
