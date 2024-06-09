@@ -10,6 +10,7 @@
 		"email": "hello+oss@sergiodxa.com",
 		"url": "https://sergiodxa.com"
 	},
+	"types": "build/index.d.ts",
 	"repository": {
 		"url": "https://github.com/manaty226/remix-auth-oidc",
 		"type": "git"
@@ -23,7 +24,7 @@
 		"typecheck": "tsc --noEmit",
 		"quality": "biome check .",
 		"quality:fix": "biome check . --write",
-		"test": "bun test",
+		"test": "bun test index.test.ts",
 		"exports": "bun run ./scripts/exports.ts"
 	},
 	"sideEffects": false,
