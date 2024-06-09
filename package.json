@@ -3,7 +3,6 @@
 	"version": "0.1.0",
 	"description": "A strategy to use and implement OIDC based on node-openid-client",
 	"license": "MIT",
-	"funding": [],
 	"keywords": ["remix", "remix-auth", "auth", "authentication", "strategy"],
 	"author": {
 		"name": "Manato Takai",
