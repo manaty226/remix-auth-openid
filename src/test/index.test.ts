@@ -53,7 +53,7 @@ describe("OIDC Strategy", () => {
 		redirect_uris: ["http://mock.example-rp/callback"],
 	}) satisfies OIDCStrategyOptions;
 
-	test("should have a name 'remix-auth-oidc'", async () => {
+	test("should have a name 'remix-auth-openid'", async () => {
 		const strategy = await OIDCStrategy.init<User>(options, verify);
 		expect(strategy.name).toBe("remix-auth-openid");
 	});
