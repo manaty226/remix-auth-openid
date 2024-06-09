@@ -7,7 +7,6 @@
 	"keywords": ["remix", "remix-auth", "auth", "authentication", "strategy"],
 	"author": {
 		"name": "Manato Takai",
-		"email": "manaty226@manaty.com",
 		"url": "https://github.com/manaty226"
 	},
 	"types": "build/index.d.ts",
