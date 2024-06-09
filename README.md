@@ -63,3 +63,6 @@ const user = await authenticator.isAuthenticated(request);
 const redirectTo = strategy.logoutUrl(user.idToken ?? "");
 await authenticator.logout(request, {redirectTo: redirectTo})
 ```
+
+## Starter Example
+Example code is available in the [Remix Auth OpenID Connect Starter Example](https://github.com/manaty226/remix-auth-openid-example).
