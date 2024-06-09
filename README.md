@@ -5,6 +5,11 @@ Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follo
 
 # Get Started
 
+## Install
+```bash
+npm i remix-auth-openid
+```
+
 ## Construct a strategy
 To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration paramters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
 
