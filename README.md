@@ -1,48 +1,65 @@
-# Remix Auth - Strategy Template
+# OpenID Connect Strategy
 
-> A template for creating a new Remix Auth strategy.
+This is a strategy for [Remix Auth](https://remix.run/resources/remix-auth) to authenticate users using OpenID Connect(OIDC).
+Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [node-openid-client](https://github.com/panva/node-openid-client). For example, it checks ID token signature, nonce value and other paramters to prevent impersonate attacks.
 
-If you want to create a new strategy for Remix Auth, you could use this as a template for your repository.
+# Get Started
 
-The repo installs the latest version of Remix Auth and do the setup for you to have tests, linting and typechecking.
+## Construct a strategy
+To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration paramters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
 
-## How to use it
+```typescript
+interface User extends OIDCStrategyBaseUser {
+    name?: string;
+}
 
-1. In the `package.json` change `name` to your strategy name, also add a description and ideally an author, repository and homepage keys.
-2. In `src/index.ts` change the `MyStrategy` for the strategy name you want to use.
-3. Implement the strategy flow inside the `authenticate` method. Use `this.success` and `this.failure` to correctly send finish the flow.
-4. In `tests/index.test.ts` change the tests to use your strategy and test it. Inside the tests you have access to `jest-fetch-mock` to mock any fetch you may need to do.
-5. Once you are ready, set the secrets on Github
-   - `NPM_TOKEN`: The token for the npm registry
-   - `GIT_USER_NAME`: The git username you want the bump workflow to use in the commit.
-   - `GIT_USER_EMAIL`: The email you want the bump workflow to use in the commit.
+const strategy = await OIDCStrategy.init<User>({
+    issuer: "http://localhost:8080/realms/master",
+    client_id: "<YOUR CLIENT ID>",
+    client_secret: "YOUR CLIENT SECRET",
+    redirect_uris: ["http://localhost:3000/callback"],
+    scopes: ["openid", "progile"],
+}, async ({tokens, request}): Promise<User> => {
 
-## Scripts
+    if (!tokens.id_token) {
+        throw new Error("No id_token in response");
+    }
 
-- `build`: Build the project for production using the TypeScript compiler (strips the types).
-- `typecheck`: Check the project for type errors, this also happens in build but it's useful to do in development.
-- `lint`: Runs ESLint against the source codebase to ensure it pass the linting rules.
-- `test`: Runs all the test using Jest.
+    if (!tokens.access_token) {
+        throw new Error("No access_token in response");
+    }
 
-## Documentations
+   // You need to return User object
+    return {
+        ...tokens.claims(),
+        accessToken: tokens.access_token,
+        idToken: tokens.id_token,
+        refreshToken: tokens.refresh_token,
+        expiredAt: new Date().getTime() / 1000 + (tokens.expires_in ?? 0),
+    }
+})
 
-To facilitate creating a documentation for your strategy, you can use the following Markdown
+authenticator.use(strategy, "your-oidc-provider-name");
+```
 
-```markdown
-# Strategy Name
+## Token refresh
+This strategy supports token refresh. You can refresh tokens by calling `refresh` method. If the refresh token is expired, you will be redirected to the `failureRedirect` URL. 
 
-<!-- Description -->
+```typescript
+const strategy = await OIDCStrategy.init<User>({...})
 
-## Supported runtimes
+const user = await authenticator.isAuthenticated(request, {
+   failureRedirect: "/login",
+})
 
-| Runtime    | Has Support |
-| ---------- | ----------- |
-| Node.js    | ✅          |
-| Cloudflare | ✅          |
+const tokens = await strategy.refresh(user.refreshToken ?? "", {failureRedirect: "/login"});
+```
 
-<!-- If it doesn't support one runtime, explain here why -->
+## Logout
+When to logout, you can create logout URL based on [OpenID Connect RP Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). Then you call 'logout' method by authenticator to clear the session and redirect to the logout URL.
 
-## How to use
-
-<!-- Explain how to use the strategy, here you should tell what options it expects from the developer when instantiating the strategy -->
+```typescript
+const user = await authenticator.isAuthenticated(request);
+const redirectTo = strategy.logoutUrl(user.idToken ?? "");
+await authenticator.logout(request, {redirectTo: redirectTo})
 ```
