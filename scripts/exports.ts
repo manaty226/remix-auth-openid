@@ -1,7 +1,7 @@
 import { file, spawn } from "bun";
 import { consola } from "consola";
 
-let proc = spawn([
+const proc = spawn([
 	"bunx",
 	"attw",
 	"-f",
@@ -11,11 +11,11 @@ let proc = spawn([
 	"--pack",
 ]);
 
-let text = await new Response(proc.stdout).text();
+const text = await new Response(proc.stdout).text();
 
-let pkg = await file("package.json").json();
+const pkg = await file("package.json").json();
 
-let entrypointLines = text
+const entrypointLines = text
 	.slice(text.indexOf(`"${pkg.name}/`))
 	.split("\n")
 	.filter(Boolean)
@@ -28,8 +28,8 @@ let entrypointLines = text
 			.replaceAll(/│$/g, ""),
 	);
 
-let entrypoints = entrypointLines.map((entrypointLine) => {
-	let [entrypoint, ...resolutionColumns] = entrypointLine.split("│");
+const entrypoints = entrypointLines.map((entrypointLine) => {
+	const [entrypoint, ...resolutionColumns] = entrypointLine.split("│");
 	return {
 		entrypoint: entrypoint.replace(pkg.name, ".").trim(),
 		esm: resolutionColumns[2].trim(),
@@ -37,7 +37,7 @@ let entrypoints = entrypointLines.map((entrypointLine) => {
 	};
 });
 
-let entrypointsWithProblems = entrypoints.filter(
+const entrypointsWithProblems = entrypoints.filter(
 	(item) => item.esm.includes("fail") || item.bundler.includes("fail"),
 );
 

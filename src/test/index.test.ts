@@ -9,16 +9,16 @@ import {
 } from "bun:test";
 import { createCookieSessionStorage } from "@remix-run/node";
 import { generators } from "openid-client";
+import type { TokenSet } from "openid-client";
 import type { AuthenticateOptions } from "remix-auth";
 import { AuthorizationError } from "remix-auth";
 import { OIDCStrategy } from "..";
 import type {
+	OIDCStrategyBaseUser,
 	OIDCStrategyOptions,
 	OIDCStrategyVerifyParams,
-	OIDCStrategyBaseUser,
 } from "..";
 import { catchResponse } from "./helper";
-import type { TokenSet } from "openid-client";
 
 import { JsonWebTokenError } from "jsonwebtoken";
 import { getMockIdP } from "./mock";

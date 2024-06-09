@@ -3,9 +3,9 @@ import { redirect } from "@remix-run/server-runtime";
 import { Issuer, errors, generators } from "openid-client";
 import type {
 	Client,
-	TokenSet,
 	ClientMetadata,
 	IssuerMetadata,
+	TokenSet,
 } from "openid-client";
 import type { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
 import { Strategy } from "remix-auth";
