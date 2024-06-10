@@ -225,7 +225,9 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		const body = new URLSearchParams();
 		body.append("id_token_hint", idToken);
 
-		const postLogoutRedirectUrl = url.searchParams.get("post_logout_redirect_uri");
+		const postLogoutRedirectUrl = url.searchParams.get(
+			"post_logout_redirect_uri",
+		);
 		if (postLogoutRedirectUrl) {
 			body.append("post_logout_redirect_uri", postLogoutRedirectUrl);
 		}
@@ -239,17 +241,14 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		if (state) {
 			body.append("state", state);
 		}
-		
-		const response =  await fetch(
-			url.origin + url.pathname,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: body,
-			}
-		);
+
+		const response = await fetch(url.origin + url.pathname, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: body,
+		});
 	}
 
 	private logoutUrl(idToken: string): string {
