@@ -61,12 +61,21 @@ const tokens = await strategy.refresh(user.refreshToken ?? "", {failureRedirect:
 ```
 
 ## Logout
-When to logout, you can create logout URL based on [OpenID Connect RP Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). Then you call 'logout' method by authenticator to clear the session and redirect to the logout URL.
+When to logout, you can use front or backchannel logout by calling 'frontChannelLogout' or 'backChannelLogout' method of strategy based on [OpenID Connect RP Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). 
+Then you should call 'logout' method of authenticator to clear the session and redirect to the logout URL.
 
+back channel logout
 ```typescript
 const user = await authenticator.isAuthenticated(request);
-const redirectTo = strategy.logoutUrl(user.idToken ?? "");
+await strategy.backChannelLogout(user.idToken ?? "");
 await authenticator.logout(request, {redirectTo: redirectTo})
+```
+
+front channel logout
+```typescript
+const user = await authenticator.isAuthenticated(request);
+await authenticator.logout(request)
+await strategy.frontChannelLogout(user.idToken ?? "");
 ```
 
 ## Starter Example
