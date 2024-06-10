@@ -215,9 +215,47 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		return null;
 	}
 
-	public logoutUrl(idToken: string): string {
+	public frontChannelLogout(idToken: string) {
+		return redirect(this.logoutUrl(idToken));
+	}
+
+	public async backChannelLogout(idToken: string) {
+		const url = new URL(this.logoutUrl(idToken));
+
+		const body = new URLSearchParams();
+		body.append("id_token_hint", idToken);
+
+		const postLogoutRedirectUrl = url.searchParams.get("post_logout_redirect_uri");
+		if (postLogoutRedirectUrl) {
+			body.append("post_logout_redirect_uri", postLogoutRedirectUrl);
+		}
+
+		const clientId = url.searchParams.get("client_id");
+		if (clientId) {
+			body.append("client_id", clientId);
+		}
+
+		const state = url.searchParams.get("state");
+		if (state) {
+			body.append("state", state);
+		}
+		
+		const response =  await fetch(
+			url.origin + url.pathname,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				body: body,
+			}
+		);
+	}
+
+	private logoutUrl(idToken: string): string {
 		return this.client.endSessionUrl({
 			id_token_hint: idToken,
+			state: generators.state(),
 		});
 	}
 }
