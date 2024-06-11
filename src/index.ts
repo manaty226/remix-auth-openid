@@ -216,7 +216,7 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 	}
 
 	public frontChannelLogout(idToken: string) {
-		return redirect(this.logoutUrl(idToken));
+		throw redirect(this.logoutUrl(idToken));
 	}
 
 	public async backChannelLogout(idToken: string) {
@@ -242,13 +242,21 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 			body.append("state", state);
 		}
 
-		const response = await fetch(url.origin + url.pathname, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-			},
-			body: body,
-		});
+		try {
+			const response = await fetch(url.origin + url.pathname, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				body: body,
+			});
+			if (!response.ok && response.status >= 400) {
+				throw new Error("failed to logout", {cause: response});
+			}
+			return response
+		} catch(e) {
+			throw e;
+		}
 	}
 
 	private logoutUrl(idToken: string): string {
