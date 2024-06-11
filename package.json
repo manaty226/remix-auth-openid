@@ -3,7 +3,13 @@
 	"version": "0.2.1",
 	"description": "A strategy to use and implement OIDC based on node-openid-client",
 	"license": "MIT",
-	"keywords": ["remix", "remix-auth", "auth", "authentication", "strategy"],
+	"keywords": [
+		"remix",
+		"remix-auth",
+		"auth",
+		"authentication",
+		"strategy"
+	],
 	"author": {
 		"name": "Manato Takai",
 		"url": "https://github.com/manaty226"
@@ -30,14 +36,16 @@
 	"engines": {
 		"node": "^18.0.0 || ^20.0.0 || >=20.0.0"
 	},
-	"files": ["build", "package.json", "README.md"],
+	"files": [
+		"build",
+		"package.json",
+		"README.md"
+	],
 	"exports": {
 		".": "./build/index.js",
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
-		"@oslojs/oauth2": "^0.1.0",
-		"debug": "^4.3.4",
 		"openid-client": "^5.6.5"
 	},
 	"peerDependencies": {
