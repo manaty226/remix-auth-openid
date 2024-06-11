@@ -1,7 +1,7 @@
 # OpenID Connect Strategy
 
 This is a strategy for [Remix Auth](https://remix.run/resources/remix-auth) to authenticate users using OpenID Connect(OIDC).
-Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [node-openid-client](https://github.com/panva/node-openid-client). For example, it checks ID token signature, nonce value and other paramters to prevent impersonate attacks.
+Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [node-openid-client](https://github.com/panva/node-openid-client). For example, it checks ID token signature, nonce value and other parameters to prevent impersonate attacks.
 
 # Get Started
 
@@ -11,7 +11,7 @@ npm i remix-auth-openid
 ```
 
 ## Construct a strategy
-To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration paramters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
+To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration parameters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
 
 ```typescript
 interface User extends OIDCStrategyBaseUser {
@@ -23,7 +23,7 @@ const strategy = await OIDCStrategy.init<User>({
     client_id: "<YOUR CLIENT ID>",
     client_secret: "YOUR CLIENT SECRET",
     redirect_uris: ["http://localhost:3000/callback"],
-    scopes: ["openid", "progile"],
+    scopes: ["openid", "profile"],
 }, async ({tokens, request}): Promise<User> => {
 
     if (!tokens.id_token) {
