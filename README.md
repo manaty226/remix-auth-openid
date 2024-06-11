@@ -64,19 +64,24 @@ const tokens = await strategy.refresh(user.refreshToken ?? "", {failureRedirect:
 When to logout, you can use front or backchannel logout by calling 'frontChannelLogout' or 'backChannelLogout' method of strategy based on [OpenID Connect RP Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). 
 Then you should call 'logout' method of authenticator to clear the session and redirect to the logout URL.
 
-back channel logout
-```typescript
-const user = await authenticator.isAuthenticated(request);
-await strategy.backChannelLogout(user.idToken ?? "");
-await authenticator.logout(request, {redirectTo: redirectTo})
-```
-
 front channel logout
 ```typescript
 const user = await authenticator.isAuthenticated(request);
 await authenticator.logout(request)
 await strategy.frontChannelLogout(user.idToken ?? "");
 ```
+
+back channel logout
+```typescript
+const user = await authenticator.isAuthenticated(request);
+try {
+    await strategy.backChannelLogout(user.idToken ?? "");
+    await authenticator.logout(request, {redirectTo: redirectTo})
+} catch (e) {
+    console.error(e);
+}
+```
+
 
 ## Starter Example
 Example code is available in the [Remix Auth OpenID Connect Starter Example](https://github.com/manaty226/remix-auth-openid-example).
