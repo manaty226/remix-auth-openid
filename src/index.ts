@@ -242,21 +242,17 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 			body.append("state", state);
 		}
 
-		try {
-			const response = await fetch(url.origin + url.pathname, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: body,
-			});
-			if (!response.ok && response.status >= 400) {
-				throw new Error("failed to logout", {cause: response});
-			}
-			return response
-		} catch(e) {
-			throw e;
+		const response = await fetch(url.origin + url.pathname, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: body,
+		});
+		if (!response.ok && response.status >= 400) {
+			throw new Error("failed to logout", { cause: response });
 		}
+		return response;
 	}
 
 	private logoutUrl(idToken: string): string {
