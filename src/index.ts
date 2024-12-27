@@ -1,4 +1,4 @@
-import { Cookie } from "@mjackson/headers";
+import { Cookie, SetCookie } from "@mjackson/headers";
 import type {
 	Client,
 	ClientMetadata,
@@ -20,6 +20,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 	private readonly state_key = "oidc:state";
 	private readonly nonce_key = "oidc:nonce";
 	private readonly code_verifier_key = "oidc:code_verifier";
+	private readonly cookie_key = "oidc:params";
 
 	private constructor(
 		client: Client,
@@ -76,24 +77,34 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 			});
 
 			// store requested session bind values into the session
-			session.set(this.state_key, state);
-			session.set(this.nonce_key, nonce);
-			session.set(this.code_verifier_key, codeVerifier);
+			const params = new URLSearchParams();
+			params.append(this.state_key, state);
+			params.append(this.nonce_key, nonce);
+			params.append(this.code_verifier_key, codeVerifier);
+
+			const paramsCookie = new SetCookie({
+				name: this.cookie_key,
+				value: params.toString(),
+				httpOnly: true,
+				sameSite: "Lax",
+				secure: this.options.https ? true : undefined,
+			});
 
 			throw redirect(authzURL, {
 				headers: {
-					"Set-Cookie": session.toString(),
+					"Set-Cookie": paramsCookie.toString(),
 				},
 			});
 		}
 
 		// callback from the IdP in the below
-		const state = session.get(this.state_key);
-		const nonce = session.get(this.nonce_key);
-		const verifier = session.get(this.code_verifier_key);
+		const cookie = new URLSearchParams(session.get(this.cookie_key));
+
+		const state = cookie.get(this.state_key) || "";
+		const nonce = cookie.get(this.nonce_key) || "";
+		const verifier = cookie.get(this.code_verifier_key) || "";
 
 		// exchange code for tokens
-
 		// check if the state is the same as the one we sent
 		if (params.state !== state) {
 			throw new ReferenceError("Invalid state");
@@ -200,6 +211,7 @@ export namespace OIDCStrategy {
 	 * developer to correctly work.
 	 */
 	export interface ClientOptions extends ClientMetadata, IssuerMetadata {
+		https?: boolean;
 		scopes?: string[];
 		audiences?: string[];
 		idTokenCheckParams?: Record<string, unknown>;

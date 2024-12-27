@@ -42,6 +42,7 @@ describe("OIDC Strategy", () => {
 
 		const redirect = new URL(response.headers.get("Location") ?? "");
 		const session = new Cookie(response.headers.get("set-cookie") ?? "");
+		const params = new URLSearchParams(session.get("oidc:params") ?? "");
 
 		expect(redirect.pathname).toBe("/authorize");
 		expect(redirect.searchParams.get("response_type")).toBe("code");
@@ -51,15 +52,15 @@ describe("OIDC Strategy", () => {
 		);
 		expect(redirect.searchParams.get("state")).toBeDefined();
 		expect(redirect.searchParams.get("state")).toBe(
-			session.get("oidc:state") || "",
+			params.get("oidc:state") || "",
 		);
 		expect(redirect.searchParams.get("nonce")).toBeDefined();
 		expect(redirect.searchParams.get("nonce")).toBe(
-			session.get("oidc:nonce") || "",
+			params.get("oidc:nonce") || "",
 		);
 		expect(redirect.searchParams.get("code_challenge")).toBeDefined();
 		expect(redirect.searchParams.get("code_challenge")).toBe(
-			generators.codeChallenge(session.get("oidc:code_verifier") || ""),
+			generators.codeChallenge(params.get("oidc:code_verifier") || ""),
 		);
 		expect(redirect.searchParams.get("code_challenge_method")).toBe("S256");
 	});
@@ -81,7 +82,10 @@ describe("OIDC Strategy", () => {
 		const stateValue = "123456";
 
 		const session = new Cookie();
-		session.set("oidc:state", stateValue);
+		session.set(
+			"oidc:params",
+			new URLSearchParams({ "oidc:state": stateValue }).toString(),
+		);
 
 		const request = new Request(
 			`https://remix.auth/callback?state=${stateValue}`,
@@ -122,9 +126,14 @@ describe("OIDC Strategy", () => {
 		const stateValue = "dummy-state";
 
 		const session = new Cookie();
-		session.set("oidc:state", stateValue);
-		session.set("oidc:nonce", "dummy-nonce");
-		session.set("oidc:code_verifier", "dummy-code-verifier");
+		session.set(
+			"oidc:params",
+			new URLSearchParams({
+				"oidc:state": stateValue,
+				"oidc:nonce": "dummy-nonce",
+				"oidc:code_verifier": "dummy-code-verifier",
+			}).toString(),
+		);
 
 		const request = new Request(
 			`https://remix.auth/callback?state=${stateValue}&code=123456`,
