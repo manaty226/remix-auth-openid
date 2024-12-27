@@ -1,26 +1,9 @@
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	describe,
-	expect,
-	mock,
-	test,
-} from "bun:test";
-import { createCookieSessionStorage } from "@remix-run/node";
+import { beforeAll, describe, expect, mock, test } from "bun:test";
 import { generators } from "openid-client";
-import type { TokenSet } from "openid-client";
-import type { AuthenticateOptions } from "remix-auth";
-import { AuthorizationError } from "remix-auth";
 import { OIDCStrategy } from "..";
-import type {
-	OIDCStrategyBaseUser,
-	OIDCStrategyOptions,
-	OIDCStrategyVerifyParams,
-} from "..";
 import { catchResponse } from "./helper";
 
-import { JsonWebTokenError } from "jsonwebtoken";
+import { Cookie } from "@mjackson/headers";
 import { getMockIdP } from "./mock";
 
 beforeAll(() => {
@@ -30,18 +13,7 @@ beforeAll(() => {
 describe("OIDC Strategy", () => {
 	const verify = mock();
 
-	const sessionStorage = createCookieSessionStorage({
-		cookie: { secrets: ["s3cr3t"] },
-	});
-
-	const authOptions: AuthenticateOptions = {
-		name: "oidc",
-		sessionKey: "auth:session",
-		sessionErrorKey: "auth:error",
-		sessionStrategyKey: "auth:strategy",
-	};
-
-	interface User extends OIDCStrategyBaseUser {}
+	interface User extends OIDCStrategy.BaseUser {}
 
 	const options = Object.freeze({
 		issuer: "http://mock.remix-auth-openid",
@@ -51,29 +23,25 @@ describe("OIDC Strategy", () => {
 		token_endpoint: "http://mock.remix-auth-openid/token",
 		jwks_uri: "http://mock.remix-auth-openid/.well-known/jwks.json",
 		redirect_uris: ["http://mock.example-rp/callback"],
-	}) satisfies OIDCStrategyOptions;
+	}) satisfies OIDCStrategy.ClientOptions;
 
 	test("should have a name 'remix-auth-openid'", async () => {
-		const strategy = await OIDCStrategy.init<User>(options, verify);
+		const strategy = await OIDCStrategy.init(options, verify);
 		expect(strategy.name).toBe("remix-auth-openid");
 	});
 
 	test("redirects to authorization url if there is no state, nonce, and code_challenge", async () => {
-		const strategy = await OIDCStrategy.init<User>(options, verify);
+		const strategy = await OIDCStrategy.init(options, verify);
 		const request = new Request("https://remix.auth/login", {
 			method: "GET",
 		});
 
-		const response = await catchResponse(
-			strategy.authenticate(request, sessionStorage, authOptions),
-		);
+		const response = await catchResponse(strategy.authenticate(request));
 
 		expect(response.status).toBe(302);
 
 		const redirect = new URL(response.headers.get("Location") ?? "");
-		const session = await sessionStorage.getSession(
-			response.headers.get("set-cookie"),
-		);
+		const session = new Cookie(response.headers.get("set-cookie") ?? "");
 
 		expect(redirect.pathname).toBe("/authorize");
 		expect(redirect.searchParams.get("response_type")).toBe("code");
@@ -82,12 +50,16 @@ describe("OIDC Strategy", () => {
 			options.redirect_uris[0],
 		);
 		expect(redirect.searchParams.get("state")).toBeDefined();
-		expect(redirect.searchParams.get("state")).toBe(session.get("oidc:state"));
+		expect(redirect.searchParams.get("state")).toBe(
+			session.get("oidc:state") || "",
+		);
 		expect(redirect.searchParams.get("nonce")).toBeDefined();
-		expect(redirect.searchParams.get("nonce")).toBe(session.get("oidc:nonce"));
+		expect(redirect.searchParams.get("nonce")).toBe(
+			session.get("oidc:nonce") || "",
+		);
 		expect(redirect.searchParams.get("code_challenge")).toBeDefined();
 		expect(redirect.searchParams.get("code_challenge")).toBe(
-			generators.codeChallenge(session.get("oidc:code_verifier")),
+			generators.codeChallenge(session.get("oidc:code_verifier") || ""),
 		);
 		expect(redirect.searchParams.get("code_challenge_method")).toBe("S256");
 	});
@@ -98,11 +70,9 @@ describe("OIDC Strategy", () => {
 			method: "GET",
 		});
 
-		const response = await catchResponse(
-			strategy.authenticate(request, sessionStorage, authOptions),
+		await expect(strategy.authenticate(request)).rejects.toThrowError(
+			ReferenceError("Invalid state"),
 		);
-
-		expect(response.status).toBe(401);
 	});
 
 	test("authorization error if code is missing", async () => {
@@ -110,34 +80,29 @@ describe("OIDC Strategy", () => {
 
 		const stateValue = "123456";
 
-		const session = await sessionStorage.getSession();
+		const session = new Cookie();
 		session.set("oidc:state", stateValue);
 
 		const request = new Request(
 			`https://remix.auth/callback?state=${stateValue}`,
 			{
 				method: "GET",
-				headers: { cookie: await sessionStorage.commitSession(session) },
+				headers: { cookie: session.toString() },
 			},
 		);
 
-		const response = await catchResponse(
-			strategy.authenticate(request, sessionStorage, authOptions),
+		await expect(strategy.authenticate(request)).rejects.toThrowError(
+			ReferenceError("Invalid code"),
 		);
-
-		expect(response.status).toBe(401);
-
-		const message = await response.json();
-		expect(message.message).toBe("Invalid code");
 	});
 
 	test("authorization success", async () => {
-		const verify = async ({ tokens, request }: OIDCStrategyVerifyParams) => {
+		const verify = async ({ tokens, request }: OIDCStrategy.VerifyOptions) => {
 			if (!tokens.id_token) {
-				throw new AuthorizationError("id_token missing");
+				throw new Error("id_token missing");
 			}
 			if (!tokens.access_token) {
-				throw new AuthorizationError("access_token missing");
+				throw new Error("access_token missing");
 			}
 
 			return {
@@ -156,7 +121,7 @@ describe("OIDC Strategy", () => {
 
 		const stateValue = "dummy-state";
 
-		const session = await sessionStorage.getSession();
+		const session = new Cookie();
 		session.set("oidc:state", stateValue);
 		session.set("oidc:nonce", "dummy-nonce");
 		session.set("oidc:code_verifier", "dummy-code-verifier");
@@ -165,21 +130,16 @@ describe("OIDC Strategy", () => {
 			`https://remix.auth/callback?state=${stateValue}&code=123456`,
 			{
 				method: "GET",
-				headers: { cookie: await sessionStorage.commitSession(session) },
+				headers: { cookie: session.toString() },
 			},
 		);
 
-		try {
-			const user = await strategy.authenticate(
-				request,
-				sessionStorage,
-				authOptions,
-			);
-		} catch (e) {
-			console.log(e);
-			throw Error("Unexpected failed to authenticate");
-		}
-
-		// expect(user).toEqual({ id: 1 });
+		await expect(strategy.authenticate(request)).resolves.toEqual({
+			sub: "some-subject",
+			idToken: expect.any(String),
+			accessToken: expect.any(String),
+			refreshToken: "mocked-refresh-token",
+			expiredAt: expect.any(Number),
+		});
 	});
 });
