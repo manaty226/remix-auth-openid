@@ -50,6 +50,9 @@
 		"openid-client": "^5.0.0",
 		"react-router": "^7.0.0"
 	},
+	"peerDependencies": {
+		"remix-auth": "^4.0.0"
+	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@biomejs/biome": "^1.7.2",
