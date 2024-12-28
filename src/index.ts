@@ -1,68 +1,40 @@
-import type { SessionStorage } from "@remix-run/server-runtime";
-import { redirect } from "@remix-run/server-runtime";
-import { Issuer, errors, generators } from "openid-client";
+import { Cookie, SetCookie } from "@mjackson/headers";
 import type {
 	Client,
 	ClientMetadata,
 	IssuerMetadata,
 	TokenSet,
 } from "openid-client";
-import type { AuthenticateOptions, StrategyVerifyCallback } from "remix-auth";
-import { Strategy } from "remix-auth";
+import { Issuer, errors, generators } from "openid-client";
+import { redirect } from "react-router";
+import { Strategy } from "remix-auth/strategy";
 
-/**
- * This interface declares what configuration the strategy needs from the
- * developer to correctly work.
- */
-export interface OIDCStrategyOptions extends ClientMetadata, IssuerMetadata {
-	scopes?: string[];
-	audiences?: string[];
-	idTokenCheckParams?: Record<string, unknown>;
-}
-
-/**
- * This interface declares what the developer will receive from the strategy
- * to verify the user identity in their system.
- */
-export interface OIDCStrategyVerifyParams {
-	tokens: TokenSet;
-	request: Request;
-}
-
-export interface OIDCStrategyBaseUser {
-	sub: string;
-	accessToken: string;
-	idToken?: string;
-	refreshToken?: string;
-	expiredAt: number;
-}
-
-const STATE_KEY = "oidc:state";
-const NONCE_KEY = "oidc:nonce";
-const CODE_VERIFIER_KEY = "oidc:code_verifier";
-
-export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
+export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 	User,
-	OIDCStrategyVerifyParams
+	OIDCStrategy.VerifyOptions
 > {
 	name = "remix-auth-openid";
-	options: OIDCStrategyOptions;
+	private options: OIDCStrategy.ClientOptions;
 	private client: Client;
+
+	private readonly state_key = "oidc:state";
+	private readonly nonce_key = "oidc:nonce";
+	private readonly code_verifier_key = "oidc:code_verifier";
+	private readonly cookie_key = "oidc:params";
 
 	private constructor(
 		client: Client,
-		options: OIDCStrategyOptions,
-		verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>,
+		options: OIDCStrategy.ClientOptions,
+		verify: Strategy.VerifyFunction<User, OIDCStrategy.VerifyOptions>,
 	) {
 		super(verify);
-
-		this.options = options;
 		this.client = client;
+		this.options = options;
 	}
 
-	public static init = async <User extends OIDCStrategyBaseUser>(
-		options: OIDCStrategyOptions,
-		verify: StrategyVerifyCallback<User, OIDCStrategyVerifyParams>,
+	public static init = async <User extends OIDCStrategy.BaseUser>(
+		options: OIDCStrategy.ClientOptions,
+		verify: Strategy.VerifyFunction<User, OIDCStrategy.VerifyOptions>,
 	) => {
 		// create an openid client
 		let issuer: Issuer;
@@ -76,19 +48,13 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		const client = new issuer.Client({
 			...options,
 		});
-		return new OIDCStrategy<User>(client, options, verify);
+		return new OIDCStrategy(client, options, verify);
 	};
 
-	async authenticate(
-		request: Request,
-		sessionStorage: SessionStorage,
-		options: AuthenticateOptions,
-	): Promise<User> {
+	async authenticate(request: Request): Promise<User> {
 		const url = new URL(request.url);
 
-		const session = await sessionStorage.getSession(
-			request.headers.get("Cookie"),
-		);
+		const session = new Cookie(request.headers.get("Cookie") ?? "");
 
 		// parse callback parameters from IdP
 		const params = this.client.callbackParams(url.toString());
@@ -111,44 +77,42 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 			});
 
 			// store requested session bind values into the session
-			session.set(STATE_KEY, state);
-			session.set(NONCE_KEY, nonce);
-			session.set(CODE_VERIFIER_KEY, codeVerifier);
+			const params = new URLSearchParams();
+			params.append(this.state_key, state);
+			params.append(this.nonce_key, nonce);
+			params.append(this.code_verifier_key, codeVerifier);
+
+			const paramsCookie = new SetCookie({
+				name: this.cookie_key,
+				value: params.toString(),
+				httpOnly: true,
+				sameSite: "Lax",
+				secure: this.options.https ? true : undefined,
+			});
 
 			throw redirect(authzURL, {
 				headers: {
-					"Set-Cookie": await sessionStorage.commitSession(session),
+					"Set-Cookie": paramsCookie.toString(),
 				},
 			});
 		}
 
 		// callback from the IdP in the below
-		const state = session.get(STATE_KEY);
-		const nonce = session.get(NONCE_KEY);
-		const verifier = session.get(CODE_VERIFIER_KEY);
+		const cookie = new URLSearchParams(session.get(this.cookie_key));
+
+		const state = cookie.get(this.state_key) || "";
+		const nonce = cookie.get(this.nonce_key) || "";
+		const verifier = cookie.get(this.code_verifier_key) || "";
 
 		// exchange code for tokens
-
 		// check if the state is the same as the one we sent
 		if (params.state !== state) {
-			return await this.failure(
-				"Invalid state",
-				request,
-				sessionStorage,
-				options,
-				new ReferenceError("Invalid state"),
-			);
+			throw new ReferenceError("Invalid state");
 		}
 
 		// check if code is present
 		if (!params.code) {
-			return await this.failure(
-				"Invalid code",
-				request,
-				sessionStorage,
-				options,
-				new ReferenceError("Invalid code"),
-			);
+			throw new ReferenceError("Invalid code");
 		}
 
 		// exchange code for tokens
@@ -167,12 +131,7 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 			);
 
 			// check caller intended verification
-			const user = await this.verify({
-				tokens: tokens,
-				request: request,
-			});
-
-			return this.success(user, request, sessionStorage, options);
+			return this.verify({ tokens, request });
 		} catch (e) {
 			let message: string;
 
@@ -190,37 +149,20 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 				message = "Token exchange failed due to unknown error";
 			}
 
-			return await this.failure(
-				message,
-				request,
-				sessionStorage,
-				options,
-				e as Error,
-			);
+			throw new Error(message);
 		}
 	}
 
-	public async refresh(
-		refreshToken: string,
-		options: Pick<AuthenticateOptions, "failureRedirect">,
-	): Promise<TokenSet | null> {
-		try {
-			const tokens = await this.client.refresh(refreshToken);
-			return tokens;
-		} catch (e) {
-			if (options.failureRedirect) {
-				throw redirect(options.failureRedirect);
-			}
-		}
-		return null;
+	public async refresh(refreshToken: string): Promise<TokenSet> {
+		return await this.client.refresh(refreshToken);
 	}
 
-	public frontChannelLogout(idToken: string) {
-		throw redirect(this.logoutUrl(idToken));
+	public redirectToLogoutUrl(idToken: string): void {
+		throw redirect(this.getLogoutUrl(idToken));
 	}
 
-	public async backChannelLogout(idToken: string) {
-		const url = new URL(this.logoutUrl(idToken));
+	public async postLogoutUrl(idToken: string): Promise<Response> {
+		const url = new URL(this.getLogoutUrl(idToken));
 
 		const body = new URLSearchParams();
 		body.append("id_token_hint", idToken);
@@ -255,10 +197,40 @@ export class OIDCStrategy<User extends OIDCStrategyBaseUser> extends Strategy<
 		return response;
 	}
 
-	private logoutUrl(idToken: string): string {
+	private getLogoutUrl(idToken: string): string {
 		return this.client.endSessionUrl({
 			id_token_hint: idToken,
 			state: generators.state(),
 		});
+	}
+}
+
+export namespace OIDCStrategy {
+	/**
+	 * This interface declares what configuration the strategy needs from the
+	 * developer to correctly work.
+	 */
+	export interface ClientOptions extends ClientMetadata, IssuerMetadata {
+		https?: boolean;
+		scopes?: string[];
+		audiences?: string[];
+		idTokenCheckParams?: Record<string, unknown>;
+	}
+
+	/**
+	 * This interface declares what the developer will receive from the strategy
+	 * to verify the user identity in their system.
+	 */
+	export interface VerifyOptions {
+		tokens: TokenSet;
+		request: Request;
+	}
+
+	export interface BaseUser {
+		sub: string;
+		accessToken: string;
+		idToken?: string;
+		refreshToken?: string;
+		expiredAt: number;
 	}
 }
