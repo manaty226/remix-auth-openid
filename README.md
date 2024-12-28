@@ -14,7 +14,7 @@ npm i remix-auth-openid
 To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration parameters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
 
 ```typescript
-interface User extends OIDCStrategyBaseUser {
+interface User extends OIDCStrategy.BaseUser {
     name?: string;
 }
 
@@ -53,35 +53,37 @@ This strategy supports token refresh. You can refresh tokens by calling `refresh
 ```typescript
 const strategy = await OIDCStrategy.init<User>({...})
 
-const user = await authenticator.isAuthenticated(request, {
-   failureRedirect: "/login",
-})
-
-const tokens = await strategy.refresh(user.refreshToken ?? "", {failureRedirect: "/login"});
+const user = await authenticator.authenticate(request);
+const tokens = await strategy.refresh(user.refreshToken ?? "");
 ```
 
 ## Logout
-When to logout, you can use front or backchannel logout by calling 'frontChannelLogout' or 'backChannelLogout' method of strategy based on [OpenID Connect RP Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html). 
-Then you should call 'logout' method of authenticator to clear the session and redirect to the logout URL.
+You can logout via front channel or back channel. 
+`
 
-front channel logout
+`redirectToLogoutUri` is redirecting to the logout URI of your OIDC provider.
+Then, the provider will redirect back to the `post_logout_redirect_uri` which you registered.
 ```typescript
-const user = await authenticator.isAuthenticated(request);
-await authenticator.logout(request)
-await strategy.frontChannelLogout(user.idToken ?? "");
+const user = await authenticator.authenticate(request);
+return await authenticator.redirectToLogoutUri(request)
 ```
 
 back channel logout
 ```typescript
-const user = await authenticator.isAuthenticated(request);
+const user = await authenticator.authenticate(request);
 try {
-    await strategy.backChannelLogout(user.idToken ?? "");
-    await authenticator.logout(request, {redirectTo: redirectTo})
-} catch (e) {
-    console.error(e);
+    await strategy.postLogoutUrl(user.idToken ?? "");
+    // destroy session with your defined session store
+    const header = await sessionStore.destroySession(request);
+    throw redirect("/login", { headers: header });
+} catch(e) {
+    // re-throw when redirect is catched
+    if (e instanceof Response) {
+        return e;
+    }
+    throw e;
 }
 ```
-
 
 ## Starter Example
 Example code is available in the [Remix Auth OpenID Connect Starter Example](https://github.com/manaty226/remix-auth-openid-example).
