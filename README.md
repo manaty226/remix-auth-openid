@@ -24,6 +24,9 @@ const strategy = await OIDCStrategy.init<User>({
     client_secret: "YOUR CLIENT SECRET",
     redirect_uris: ["http://localhost:3000/callback"],
     scopes: ["openid", "profile"],
+    // Required when the issuer uses HTTP (non-TLS), e.g. local development.
+    // Remove this option in production with HTTPS endpoints.
+    allowInsecureRequests: true,
 }, async ({tokens, request}): Promise<User> => {
 
     if (!tokens.id_token) {
@@ -36,7 +39,7 @@ const strategy = await OIDCStrategy.init<User>({
 
    // You need to return User object
     return {
-        ...tokens.claims(),
+        ...(tokens.claims() ?? {}),
         accessToken: tokens.access_token,
         idToken: tokens.id_token,
         refreshToken: tokens.refresh_token,

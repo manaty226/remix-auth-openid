@@ -23,6 +23,7 @@ describe("OIDC Strategy", () => {
 		token_endpoint: "http://mock.remix-auth-openid/token",
 		jwks_uri: "http://mock.remix-auth-openid/.well-known/jwks.json",
 		redirect_uris: ["http://mock.example-rp/callback"],
+		allowInsecureRequests: true,
 	}) satisfies OIDCStrategy.ClientOptions;
 
 	test("should have a name 'remix-auth-openid'", async () => {
@@ -119,7 +120,7 @@ describe("OIDC Strategy", () => {
 		};
 
 		const strategy = await OIDCStrategy.init<User>(
-			{ ...options, idTokenCheckParams: { max_age: 20 } },
+			{ ...options, idTokenCheckParams: { maxAge: 20 } },
 			verify,
 		);
 

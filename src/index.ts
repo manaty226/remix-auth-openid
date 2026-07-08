@@ -31,33 +31,35 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 		verify: Strategy.VerifyFunction<User, OIDCStrategy.VerifyOptions>,
 	) => {
 		const issuerUrl = new URL(options.issuer);
+
+		// Strategy-specific options are extracted; the rest is OIDC metadata
+		const {
+			https: _https,
+			scopes: _scopes,
+			audiences: _audiences,
+			idTokenCheckParams: _idTokenCheckParams,
+			allowInsecureRequests,
+			...oidcMetadata
+		} = options;
+
 		let config: client.Configuration;
 		if (!options.authorization_endpoint || !options.token_endpoint) {
 			config = await client.discovery(
 				issuerUrl,
 				options.client_id,
-				{
-					client_secret: options.client_secret,
-					redirect_uris: options.redirect_uris,
-				},
+				oidcMetadata as Partial<client.ClientMetadata>,
 				undefined,
-				issuerUrl.protocol === "http:"
+				allowInsecureRequests
 					? { execute: [client.allowInsecureRequests] }
 					: undefined,
 			);
 		} else {
-			const server: client.ServerMetadata = {
-				issuer: options.issuer,
-				authorization_endpoint: options.authorization_endpoint,
-				token_endpoint: options.token_endpoint,
-				jwks_uri: options.jwks_uri,
-				end_session_endpoint: options.end_session_endpoint,
-			};
-			config = new client.Configuration(server, options.client_id, {
-				client_secret: options.client_secret,
-				redirect_uris: options.redirect_uris,
-			});
-			if (issuerUrl.protocol === "http:") {
+			config = new client.Configuration(
+				oidcMetadata as client.ServerMetadata,
+				options.client_id,
+				oidcMetadata as Partial<client.ClientMetadata>,
+			);
+			if (allowInsecureRequests) {
 				client.allowInsecureRequests(config);
 			}
 		}
@@ -138,7 +140,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 				expectedState: state,
 				expectedNonce: nonce,
 				pkceCodeVerifier: verifier,
-				...(this.options.idTokenCheckParams as client.AuthorizationCodeGrantChecks),
+				...this.options.idTokenCheckParams,
 			});
 
 			// check caller intended verification
@@ -208,6 +210,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: body,
+			signal: AbortSignal.timeout(10000),
 		});
 		if (!response.ok && response.status >= 400) {
 			throw new Error("failed to logout", { cause: response });
@@ -242,7 +245,13 @@ export namespace OIDCStrategy {
 		https?: boolean;
 		scopes?: string[];
 		audiences?: string[];
-		idTokenCheckParams?: Record<string, unknown>;
+		/** When set to true, allows HTTP (non-TLS) requests. Use only for local development and testing. */
+		allowInsecureRequests?: boolean;
+		/** Additional ID Token checks. Only `maxAge` and `idTokenExpected` are allowed; security-critical checks are handled internally. */
+		idTokenCheckParams?: Pick<
+			client.AuthorizationCodeGrantChecks,
+			"maxAge" | "idTokenExpected"
+		>;
 		[key: string]: unknown;
 	}
 
