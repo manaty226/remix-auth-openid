@@ -1,7 +1,7 @@
 # OpenID Connect Strategy
 
 This is a strategy for [Remix Auth](https://remix.run/resources/remix-auth) to authenticate users using OpenID Connect(OIDC).
-Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [node-openid-client](https://github.com/panva/node-openid-client). For example, it checks ID token signature, nonce value and other parameters to prevent impersonate attacks.
+Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [openid-client](https://github.com/panva/node-openid-client) v6. For example, it checks ID token signature, nonce value and other parameters to prevent impersonate attacks.
 
 # Get Started
 
@@ -11,7 +11,7 @@ npm i remix-auth-openid
 ```
 
 ## Construct a strategy
-To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration parameters heavily rely on [node-openid-client](https://github.com/panva/node-openid-client).
+To use this strategy, you need to create a strategy object by calling `init` method. The `init` method takes a configuration object and a callback function, which defined by remix auth strategy. The configuration parameters heavily rely on [openid-client](https://github.com/panva/node-openid-client) v6.
 
 ```typescript
 interface User extends OIDCStrategy.BaseUser {
@@ -50,6 +50,16 @@ const strategy = await OIDCStrategy.init<User>({
 authenticator.use(strategy, "your-oidc-provider-name");
 ```
 
+### Additional ID Token checks
+Pass `idTokenCheckParams` to add extra ID token validation. Only `maxAge` (max token age in seconds) and `idTokenExpected` are accepted; security-critical checks (signature, nonce, state, PKCE) are always handled internally.
+
+```typescript
+const strategy = await OIDCStrategy.init<User>({
+    // ...other options
+    idTokenCheckParams: { maxAge: 20 },
+}, verify);
+```
+
 ## Token refresh
 This strategy supports token refresh. You can refresh tokens by calling `refresh` method. If the refresh token is expired, you will be redirected to the `failureRedirect` URL. 
 
@@ -62,16 +72,16 @@ const tokens = await strategy.refresh(user.refreshToken ?? "");
 
 ## Logout
 You can logout via front channel or back channel. 
-`
 
-`redirectToLogoutUri` is redirecting to the logout URI of your OIDC provider.
+### Front channel logout
+`redirectToLogoutUrl` redirects to the logout URL of your OIDC provider with an `id_token_hint`.
 Then, the provider will redirect back to the `post_logout_redirect_uri` which you registered.
 ```typescript
 const user = await authenticator.authenticate(request);
-return await authenticator.redirectToLogoutUri(request)
+return strategy.redirectToLogoutUrl(user.idToken ?? "");
 ```
 
-back channel logout
+### Back channel logout
 ```typescript
 const user = await authenticator.authenticate(request);
 try {
