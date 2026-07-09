@@ -1,11 +1,5 @@
 import { Cookie, SetCookie } from "@mjackson/headers";
-import type {
-	Client,
-	ClientMetadata,
-	IssuerMetadata,
-	TokenSet,
-} from "openid-client";
-import { Issuer, errors, generators } from "openid-client";
+import * as client from "openid-client";
 import { redirect } from "react-router";
 import { Strategy } from "remix-auth/strategy";
 
@@ -15,7 +9,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 > {
 	name = "remix-auth-openid";
 	private options: OIDCStrategy.ClientOptions;
-	private client: Client;
+	private config: client.Configuration;
 
 	private readonly state_key = "oidc:state";
 	private readonly nonce_key = "oidc:nonce";
@@ -23,12 +17,12 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 	private readonly cookie_key = "oidc:params";
 
 	private constructor(
-		client: Client,
+		config: client.Configuration,
 		options: OIDCStrategy.ClientOptions,
 		verify: Strategy.VerifyFunction<User, OIDCStrategy.VerifyOptions>,
 	) {
 		super(verify);
-		this.client = client;
+		this.config = config;
 		this.options = options;
 	}
 
@@ -36,19 +30,40 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 		options: OIDCStrategy.ClientOptions,
 		verify: Strategy.VerifyFunction<User, OIDCStrategy.VerifyOptions>,
 	) => {
-		// create an openid client
-		let issuer: Issuer;
+		const issuerUrl = new URL(options.issuer);
+
+		// Strategy-specific options are extracted; the rest is OIDC metadata
+		const {
+			https: _https,
+			scopes: _scopes,
+			audiences: _audiences,
+			idTokenCheckParams: _idTokenCheckParams,
+			allowInsecureRequests,
+			...oidcMetadata
+		} = options;
+
+		let config: client.Configuration;
 		if (!options.authorization_endpoint || !options.token_endpoint) {
-			issuer = await Issuer.discover(options.issuer);
+			config = await client.discovery(
+				issuerUrl,
+				options.client_id,
+				oidcMetadata as Partial<client.ClientMetadata>,
+				undefined,
+				allowInsecureRequests
+					? { execute: [client.allowInsecureRequests] }
+					: undefined,
+			);
 		} else {
-			issuer = new Issuer({
-				...options,
-			});
+			config = new client.Configuration(
+				oidcMetadata as client.ServerMetadata,
+				options.client_id,
+				oidcMetadata as Partial<client.ClientMetadata>,
+			);
+			if (allowInsecureRequests) {
+				client.allowInsecureRequests(config);
+			}
 		}
-		const client = new issuer.Client({
-			...options,
-		});
-		return new OIDCStrategy(client, options, verify);
+		return new OIDCStrategy(config, options, verify);
 	};
 
 	async authenticate(request: Request): Promise<User> {
@@ -56,25 +71,31 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 
 		const session = new Cookie(request.headers.get("Cookie") ?? "");
 
-		// parse callback parameters from IdP
-		const params = this.client.callbackParams(url.toString());
-
 		// if state is not present, we need to start authorization request to the IdP
-		if (!params.state) {
-			// generate state, nonce, and code_challenge for prevent CSRF
-			const state = generators.state();
-			const nonce = generators.nonce();
-			const codeVerifier = generators.codeVerifier();
-			const codeChallenge = generators.codeChallenge(codeVerifier);
+		if (!url.searchParams.has("state")) {
+			const state = client.randomState();
+			const nonce = client.randomNonce();
+			const codeVerifier = client.randomPKCECodeVerifier();
+			const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
-			const authzURL = this.client.authorizationUrl({
+			const authzParams: Record<string, string> = {
 				code_challenge: codeChallenge,
 				code_challenge_method: "S256",
 				state: state,
 				nonce: nonce,
-				scope: this.options.scopes?.join(" "),
-				audience: this.options.audiences?.join(" "),
-			});
+			};
+
+			if (this.options.scopes) {
+				authzParams.scope = this.options.scopes.join(" ");
+			}
+			if (this.options.audiences) {
+				authzParams.audience = this.options.audiences.join(" ");
+			}
+			if (this.options.redirect_uris?.[0]) {
+				authzParams.redirect_uri = this.options.redirect_uris[0];
+			}
+
+			const authzURL = client.buildAuthorizationUrl(this.config, authzParams);
 
 			// store requested session bind values into the session
 			const params = new URLSearchParams();
@@ -90,7 +111,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 				secure: this.options.https ? true : undefined,
 			});
 
-			throw redirect(authzURL, {
+			throw redirect(authzURL.toString(), {
 				headers: {
 					"Set-Cookie": paramsCookie.toString(),
 				},
@@ -104,40 +125,35 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 		const nonce = cookie.get(this.nonce_key) || "";
 		const verifier = cookie.get(this.code_verifier_key) || "";
 
-		// exchange code for tokens
-		// check if the state is the same as the one we sent
-		if (params.state !== state) {
+		// check if the state from cookie matches the one in the URL
+		if (url.searchParams.get("state") !== state) {
 			throw new ReferenceError("Invalid state");
 		}
-
 		// check if code is present
-		if (!params.code) {
+		if (!url.searchParams.has("code")) {
 			throw new ReferenceError("Invalid code");
 		}
 
 		// exchange code for tokens
 		try {
-			// request to token endpoint with checking state, nonce, response_type and code_verifier
-			const tokens = await this.client.callback(
-				this.options.redirect_uris?.[0],
-				params,
-				{
-					state: state,
-					nonce: nonce,
-					response_type: "code",
-					code_verifier: verifier,
-					...this.options.idTokenCheckParams,
-				},
-			);
+			const tokens = await client.authorizationCodeGrant(this.config, request, {
+				expectedState: state,
+				expectedNonce: nonce,
+				pkceCodeVerifier: verifier,
+				...this.options.idTokenCheckParams,
+			});
 
 			// check caller intended verification
 			return this.verify({ tokens, request });
 		} catch (e) {
 			let message: string;
 
-			if (e instanceof errors.OPError) {
+			if (e instanceof client.ResponseBodyError) {
 				message = e.error_description ?? "Token exchange failed due to IdP";
-			} else if (e instanceof errors.RPError) {
+			} else if (e instanceof client.AuthorizationResponseError) {
+				message =
+					e.error_description ?? "Token exchange failed due to invalid response";
+			} else if (e instanceof client.ClientError) {
 				message = e.message ?? "Token exchange failed due to client";
 			} else if (e instanceof TypeError) {
 				message = e.message ?? "Token exchange failed due to network";
@@ -153,8 +169,12 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 		}
 	}
 
-	public async refresh(refreshToken: string): Promise<TokenSet> {
-		return await this.client.refresh(refreshToken);
+	public async refresh(
+		refreshToken: string,
+	): Promise<
+		client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
+	> {
+		return await client.refreshTokenGrant(this.config, refreshToken);
 	}
 
 	public redirectToLogoutUrl(idToken: string): void {
@@ -190,6 +210,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: body,
+			signal: AbortSignal.timeout(10000),
 		});
 		if (!response.ok && response.status >= 400) {
 			throw new Error("failed to logout", { cause: response });
@@ -198,10 +219,12 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 	}
 
 	private getLogoutUrl(idToken: string): string {
-		return this.client.endSessionUrl({
-			id_token_hint: idToken,
-			state: generators.state(),
-		});
+		return client
+			.buildEndSessionUrl(this.config, {
+				id_token_hint: idToken,
+				state: client.randomState(),
+			})
+			.toString();
 	}
 }
 
@@ -210,11 +233,26 @@ export namespace OIDCStrategy {
 	 * This interface declares what configuration the strategy needs from the
 	 * developer to correctly work.
 	 */
-	export interface ClientOptions extends ClientMetadata, IssuerMetadata {
+	export interface ClientOptions {
+		issuer: string;
+		client_id: string;
+		client_secret?: string;
+		redirect_uris?: string[];
+		authorization_endpoint?: string;
+		token_endpoint?: string;
+		jwks_uri?: string;
+		end_session_endpoint?: string;
 		https?: boolean;
 		scopes?: string[];
 		audiences?: string[];
-		idTokenCheckParams?: Record<string, unknown>;
+		/** When set to true, allows HTTP (non-TLS) requests. Use only for local development and testing. */
+		allowInsecureRequests?: boolean;
+		/** Additional ID Token checks. Only `maxAge` and `idTokenExpected` are allowed; security-critical checks are handled internally. */
+		idTokenCheckParams?: Pick<
+			client.AuthorizationCodeGrantChecks,
+			"maxAge" | "idTokenExpected"
+		>;
+		[key: string]: unknown;
 	}
 
 	/**
@@ -222,7 +260,7 @@ export namespace OIDCStrategy {
 	 * to verify the user identity in their system.
 	 */
 	export interface VerifyOptions {
-		tokens: TokenSet;
+		tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers;
 		request: Request;
 	}
 

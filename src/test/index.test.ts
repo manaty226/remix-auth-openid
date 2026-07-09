@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, mock, test } from "bun:test";
-import { generators } from "openid-client";
+import * as client from "openid-client";
 import { OIDCStrategy } from "..";
 import { catchResponse } from "./helper";
 
@@ -23,6 +23,7 @@ describe("OIDC Strategy", () => {
 		token_endpoint: "http://mock.remix-auth-openid/token",
 		jwks_uri: "http://mock.remix-auth-openid/.well-known/jwks.json",
 		redirect_uris: ["http://mock.example-rp/callback"],
+		allowInsecureRequests: true,
 	}) satisfies OIDCStrategy.ClientOptions;
 
 	test("should have a name 'remix-auth-openid'", async () => {
@@ -43,6 +44,8 @@ describe("OIDC Strategy", () => {
 		const redirect = new URL(response.headers.get("Location") ?? "");
 		const session = new Cookie(response.headers.get("set-cookie") ?? "");
 		const params = new URLSearchParams(session.get("oidc:params") ?? "");
+		const codeVerifier = params.get("oidc:code_verifier") || "";
+		const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
 		expect(redirect.pathname).toBe("/authorize");
 		expect(redirect.searchParams.get("response_type")).toBe("code");
@@ -59,9 +62,7 @@ describe("OIDC Strategy", () => {
 			params.get("oidc:nonce") || "",
 		);
 		expect(redirect.searchParams.get("code_challenge")).toBeDefined();
-		expect(redirect.searchParams.get("code_challenge")).toBe(
-			generators.codeChallenge(params.get("oidc:code_verifier") || ""),
-		);
+		expect(redirect.searchParams.get("code_challenge")).toBe(codeChallenge);
 		expect(redirect.searchParams.get("code_challenge_method")).toBe("S256");
 	});
 
@@ -110,7 +111,7 @@ describe("OIDC Strategy", () => {
 			}
 
 			return {
-				sub: tokens.claims().sub,
+				sub: tokens.claims()?.sub ?? "",
 				idToken: tokens.id_token,
 				accessToken: tokens.access_token,
 				refreshToken: tokens.refresh_token,
@@ -119,7 +120,7 @@ describe("OIDC Strategy", () => {
 		};
 
 		const strategy = await OIDCStrategy.init<User>(
-			{ ...options, idTokenCheckParams: { max_age: 20 } },
+			{ ...options, idTokenCheckParams: { maxAge: 20 } },
 			verify,
 		);
 
