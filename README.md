@@ -3,6 +3,8 @@
 This is a strategy for [Remix Auth](https://remix.run/resources/remix-auth) to authenticate users using OpenID Connect(OIDC).
 Unlike the existing OIDC strategy for Remix Auth, this strategy faithfully follow the OIDC protocol based on [openid-client](https://github.com/panva/node-openid-client) v6. For example, it checks ID token signature, nonce value and other parameters to prevent impersonate attacks.
 
+> Requires Node.js 22.22.0+ and React Router v8+ (via Remix Auth v4+).
+
 # Get Started
 
 ## Install

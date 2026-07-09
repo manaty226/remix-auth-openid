@@ -119,7 +119,7 @@ export class OIDCStrategy<User extends OIDCStrategy.BaseUser> extends Strategy<
 		}
 
 		// callback from the IdP in the below
-		const cookie = new URLSearchParams(session.get(this.cookie_key));
+		const cookie = new URLSearchParams(session.get(this.cookie_key) ?? "");
 
 		const state = cookie.get(this.state_key) || "";
 		const nonce = cookie.get(this.nonce_key) || "";

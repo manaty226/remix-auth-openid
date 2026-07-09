@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["DOM", "DOM.Iterable", "ES2019"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "esModuleInterop": true,
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
