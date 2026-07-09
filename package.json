@@ -34,7 +34,7 @@
 	"sideEffects": false,
 	"type": "module",
 	"engines": {
-		"node": "^20.0.0"
+		"node": ">=22.22.0"
 	},
 	"files": [
 		"build",
@@ -46,9 +46,9 @@
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
-		"@mjackson/headers": "^0.9.0",
+		"@mjackson/headers": "^0.11.0",
 		"openid-client": "^6.0.0",
-		"react-router": "^7.0.0"
+		"react-router": "^8.0.0"
 	},
 	"peerDependencies": {
 		"remix-auth": "^4.0.0"
@@ -56,14 +56,14 @@
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@biomejs/biome": "^1.7.2",
-		"@react-router/node": "^7.0.0",
+		"@react-router/node": "^8.0.0",
 		"@types/bun": "^1.0.12",
 		"@types/debug": "^4.1.12",
 		"@types/jsonwebtoken": "^9.0.6",
 		"consola": "^3.2.3",
 		"jsonwebtoken": "^9.0.2",
 		"msw": "^2.2.13",
-		"remix-auth": "^4.1.0",
+		"remix-auth": "^4.2.0",
 		"typedoc": "^0.25.13",
 		"typedoc-plugin-mdn-links": "^3.1.25",
 		"typescript": "^5.4.5"
